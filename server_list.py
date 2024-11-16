@@ -1,6 +1,7 @@
 import curses
-import socket
 import psutil
+import socket
+from detail_screen import DetailScreen  # New module to handle detailed view
 
 
 class ServerList:
@@ -24,12 +25,11 @@ class ServerList:
         self.stdscr.clear()
         height, width = self.stdscr.getmaxyx()
 
-        # Display server list
         for idx, (ip, port, process) in enumerate(self.filtered_servers):
             x = 2
             y = idx + 1
             if y >= height - 2:
-                break  # Avoid drawing beyond the window height
+                break
 
             if idx == self.current_index:
                 self.stdscr.attron(curses.color_pair(1))
@@ -38,7 +38,6 @@ class ServerList:
             else:
                 self.stdscr.addstr(y, x, f"{ip}:{port} - {process}")
 
-        # Display search bar
         self.stdscr.addstr(height - 1, 0, f"Search: {self.search_query}")
         self.stdscr.refresh()
 
@@ -49,34 +48,35 @@ class ServerList:
             for ip, port, process in self.servers
             if query in ip.lower() or query in process.lower()
         ]
-        self.current_index = 0  # Reset index after filtering
+        self.current_index = 0
 
     def run(self):
         curses.start_color()
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
-        while True:
-            self.display_servers()
-            key = self.stdscr.getch()
+        try:
+            while True:
+                self.display_servers()
+                key = self.stdscr.getch()
 
-            if key == curses.KEY_UP:
-                self.current_index = max(0, self.current_index - 1)
-            elif key == curses.KEY_DOWN:
-                self.current_index = min(
-                    len(self.filtered_servers) - 1, self.current_index + 1
-                )
-            elif key == curses.KEY_BACKSPACE or key == 127:
-                self.search_query = self.search_query[:-1]
-                self.filter_servers()
-            elif key == 10:  # Enter key
-                selected_server = self.filtered_servers[self.current_index]
-                self.stdscr.addstr(
-                    0, 0, f"Selected: {selected_server}", curses.color_pair(1)
-                )
-                self.stdscr.refresh()
-                self.stdscr.getch()  # Wait for user input
-            elif 32 <= key <= 126:  # Printable characters
-                self.search_query += chr(key)
-                self.filter_servers()
-            elif key == 27:  # Escape key
-                break
+                if key == curses.KEY_UP:
+                    self.current_index = max(0, self.current_index - 1)
+                elif key == curses.KEY_DOWN:
+                    self.current_index = min(
+                        len(self.filtered_servers) - 1, self.current_index + 1
+                    )
+                elif key == curses.KEY_BACKSPACE or key == 127:
+                    self.search_query = self.search_query[:-1]
+                    self.filter_servers()
+                elif key == 10:  # Enter key
+                    selected_server = self.filtered_servers[self.current_index]
+                    DetailScreen(
+                        self.stdscr, selected_server
+                    ).run()  # Open detailed screen
+                elif 32 <= key <= 126:
+                    self.search_query += chr(key)
+                    self.filter_servers()
+                elif key == 27:  # Escape key
+                    break
+        except KeyboardInterrupt:
+            exit(0)
