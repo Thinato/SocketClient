@@ -1,5 +1,7 @@
 # detail_screen.py
 import curses
+import socket
+
 
 class DetailScreen:
     def __init__(self, stdscr, server):
@@ -8,6 +10,13 @@ class DetailScreen:
         self.messages = []  # Store (message, is_sent) tuples
         self.input_buffer = ""
         self.is_hex = True  # Toggle between hex and UTF-8 encoding
+        self.skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.messages.append(("Connecting to " + str(server), False))
+        try:
+            self.skt.connect(server[:2])
+            self.messages.append(("Connected", False))
+        except ConnectionRefusedError:
+            self.messages.append(("Connection refused", False))
 
     def display_header(self):
         ip, port, process = self.server
@@ -16,7 +25,9 @@ class DetailScreen:
 
     def display_messages(self):
         height, width = self.stdscr.getmaxyx()
-        for idx, (msg, is_sent) in enumerate(self.messages[-(height-5):]):  # Display last N messages
+        for idx, (msg, is_sent) in enumerate(
+            self.messages[-(height - 5) :]
+        ):  # Display last N messages
             color = curses.color_pair(2) if is_sent else curses.color_pair(3)
             self.stdscr.addstr(2 + idx, 0, msg, color)
 
@@ -25,6 +36,9 @@ class DetailScreen:
         mode = "Hexadecimal" if self.is_hex else "UTF-8"
         self.stdscr.addstr(height - 2, 0, f"Mode: {mode} | Input: {self.input_buffer}")
         self.stdscr.refresh()
+
+    def send_data(self, data: bytes):
+        self.skt.send(data)
 
     def run(self):
         curses.start_color()
@@ -46,18 +60,20 @@ class DetailScreen:
                 elif key == 10:  # Enter key to send message
                     if self.is_hex:
                         try:
-                            byte_data = bytes.fromhex(self.input_buffer.replace(",", ""))
+                            byte_data = bytes.fromhex(
+                                self.input_buffer.replace(",", "")
+                            )
                             self.messages.append((f"Sent: {byte_data}", True))
+                            self.send_data(byte_data)
                         except ValueError:
                             self.messages.append(("Invalid hex input", True))
                     else:
                         self.messages.append((f"Sent: {self.input_buffer}", True))
+                        self.send_data(self.input_buffer.encode())
                     self.input_buffer = ""
-                elif key == ord('!'):  # Toggle encoding mode
+                elif key == ord("!"):  # Toggle encoding mode
                     self.is_hex = not self.is_hex
                 elif 32 <= key <= 126:  # Printable characters
                     self.input_buffer += chr(key)
         except KeyboardInterrupt:
             exit(0)
-            
-            
